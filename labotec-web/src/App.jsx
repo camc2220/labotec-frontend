@@ -8,14 +8,16 @@ import Patients from './pages/Patients'
 import Appointments from './pages/Appointments'
 import Results from './pages/Results'
 import Invoices from './pages/Invoices'
+import Home from './pages/Home'
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        <Route index element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route index element={<Navigate to="/patients" replace />} />
+        <Route path="/app" element={<PrivateRoute><Layout /></PrivateRoute>}>
+          <Route index element={<Navigate to="/app/patients" replace />} />
           <Route path="patients" element={<Patients />} />
           <Route path="appointments" element={<Appointments />} />
           <Route path="results" element={<Results />} />
