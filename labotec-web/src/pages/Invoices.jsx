@@ -1,19 +1,38 @@
 import React, { useEffect, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
+import { useAuth } from '../context/AuthContext'
+
 export default function Invoices() {
+  const { user } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const isPatient = user?.role === 'patient'
+  const endpoint = isPatient ? '/api/patients/me/invoices' : '/api/invoices'
+
   const fetchData = async () => {
+    if (!user) return
     setLoading(true)
+    setError('')
     try {
-      const res = await api.get('/api/invoices', { params: { page:1, pageSize:20, sortDir:'asc' } })
+      const res = await api.get(endpoint, { params: { page: 1, pageSize: 20, sortDir: 'desc' } })
       setItems(res.data.items ?? res.data.Items ?? [])
-    } finally { setLoading(false) }
+    } catch (err) {
+      console.error(err)
+      setError('No pudimos cargar las facturas. Intenta nuevamente más tarde.')
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(() => { fetchData() }, [])
+
+  useEffect(() => {
+    if (user) fetchData()
+  }, [endpoint, user])
+
   const columns = [
-    { key: 'patientName', header: 'Paciente' },
+    ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
     { key: 'number', header: 'Factura' },
     { key: 'amount', header: 'Monto' },
     { key: 'issuedAt', header: 'Fecha' },
@@ -21,8 +40,15 @@ export default function Invoices() {
   ]
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Facturas</h2>
-      {loading ? <div>Cargando...</div> : <Table columns={columns} data={items} />}
+      <h2 className="text-xl font-semibold">{isPatient ? 'Mis facturas' : 'Facturas'}</h2>
+      {error && <div className="text-sm text-red-600">{error}</div>}
+      {loading ? (
+        <div>Cargando...</div>
+      ) : items.length > 0 ? (
+        <Table columns={columns} data={items} />
+      ) : (
+        <div className="text-sm text-gray-500">{isPatient ? 'No tienes facturas registradas.' : 'No hay facturas registradas.'}</div>
+      )}
     </section>
   )
 }

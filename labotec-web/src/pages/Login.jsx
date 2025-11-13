@@ -10,7 +10,10 @@ export default function Login() {
   const onSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    try { await login(userName, password); navigate('/patients') }
+    try {
+      await login(userName, password)
+      navigate('/app', { replace: true })
+    }
     catch { setError('Credenciales inválidas o API no disponible') }
   }
   return (

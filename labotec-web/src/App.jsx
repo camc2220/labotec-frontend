@@ -9,6 +9,8 @@ import Appointments from './pages/Appointments'
 import Results from './pages/Results'
 import Invoices from './pages/Invoices'
 import Home from './pages/Home'
+import PatientDashboard from './pages/PatientDashboard'
+import AppIndexRedirect from './components/AppIndexRedirect'
 
 export default function App() {
   return (
@@ -17,7 +19,8 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/app" element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route index element={<Navigate to="/app/patients" replace />} />
+          <Route index element={<AppIndexRedirect />} />
+          <Route path="dashboard" element={<PatientDashboard />} />
           <Route path="patients" element={<Patients />} />
           <Route path="appointments" element={<Appointments />} />
           <Route path="results" element={<Results />} />
