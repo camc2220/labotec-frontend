@@ -8,6 +8,7 @@ export default function Layout() {
   const navigation = useMemo(() => {
     if (user?.role === 'admin') {
       return [
+        { to: '/app/users', label: 'Usuarios' },
         { to: '/app/patients', label: 'Pacientes' },
         { to: '/app/appointments', label: 'Citas' },
         { to: '/app/results', label: 'Resultados' },

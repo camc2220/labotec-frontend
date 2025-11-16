@@ -6,6 +6,6 @@ export default function AppIndexRedirect() {
   const { user } = useAuth()
   if (!user) return null
 
-  const target = user.role === 'admin' ? '/app/patients' : '/app/dashboard'
+  const target = user.role === 'admin' ? '/app/users' : '/app/dashboard'
   return <Navigate to={target} replace />
 }
