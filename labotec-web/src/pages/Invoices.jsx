@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
+import Modal from '../components/Modal'
+import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
 
 export default function Invoices() {
@@ -8,6 +10,17 @@ export default function Invoices() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [formData, setFormData] = useState({
+    patientId: '',
+    number: '',
+    amount: '',
+    issuedAt: '',
+    paid: false,
+  })
 
   const isPatient = user?.role === 'patient'
   const endpoint = isPatient ? '/api/patients/me/invoices' : '/api/invoices'
@@ -31,16 +44,95 @@ export default function Invoices() {
     if (user) fetchData()
   }, [endpoint, user])
 
+  const openForm = item => {
+    if (item) {
+      setFormData({
+        patientId: item.patientId ?? '',
+        number: item.number ?? '',
+        amount: item.amount ?? '',
+        issuedAt: item.issuedAt ? item.issuedAt.slice(0, 10) : '',
+        paid: Boolean(item.paid),
+      })
+      setEditingItem(item)
+    } else {
+      setFormData({ patientId: '', number: '', amount: '', issuedAt: '', paid: false })
+      setEditingItem(null)
+    }
+    setFormError('')
+    setShowForm(true)
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    setFormError('')
+    setEditingItem(null)
+  }
+
+  const handleFormSubmit = async e => {
+    e.preventDefault()
+    if (isPatient) return
+    setSaving(true)
+    setFormError('')
+    try {
+      const payload = { ...formData, paid: Boolean(formData.paid) }
+      if (editingItem) {
+        await api.put(`/api/invoices/${resolveEntityId(editingItem)}`, payload)
+      } else {
+        await api.post('/api/invoices', payload)
+      }
+      closeForm()
+      fetchData()
+    } catch (err) {
+      console.error(err)
+      setFormError('No pudimos guardar la factura. Revisa los datos e intenta nuevamente.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async item => {
+    if (isPatient) return
+    const id = resolveEntityId(item)
+    if (!id) return
+    if (!window.confirm('¿Eliminar esta factura?')) return
+    try {
+      await api.delete(`/api/invoices/${id}`)
+      fetchData()
+    } catch (err) {
+      console.error(err)
+      setError('No pudimos eliminar la factura.')
+    }
+  }
+
   const columns = [
     ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
     { key: 'number', header: 'Factura' },
     { key: 'amount', header: 'Monto' },
     { key: 'issuedAt', header: 'Fecha' },
     { key: 'paid', header: 'Pagada', render: r => r.paid ? 'Sí' : 'No' },
+    ...(!isPatient
+      ? [
+        {
+          key: 'actions',
+          header: 'Acciones',
+          render: row => (
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">Editar</button>
+              <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+            </div>
+          ),
+        },
+      ]
+      : []),
   ]
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">{isPatient ? 'Mis facturas' : 'Facturas'}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold">{isPatient ? 'Mis facturas' : 'Facturas'}</h2>
+        {!isPatient && (
+          <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar factura</button>
+        )}
+      </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       {loading ? (
         <div>Cargando...</div>
@@ -48,6 +140,69 @@ export default function Invoices() {
         <Table columns={columns} data={items} />
       ) : (
         <div className="text-sm text-gray-500">{isPatient ? 'No tienes facturas registradas.' : 'No hay facturas registradas.'}</div>
+      )}
+      {showForm && !isPatient && (
+        <Modal title={editingItem ? 'Editar factura' : 'Agregar factura'} onClose={closeForm}>
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">ID del paciente</label>
+              <input
+                value={formData.patientId}
+                onChange={e => setFormData({ ...formData, patientId: e.target.value })}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Número de factura</label>
+              <input
+                value={formData.number}
+                onChange={e => setFormData({ ...formData, number: e.target.value })}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                required
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Monto</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Fecha de emisión</label>
+                <input
+                  type="date"
+                  value={formData.issuedAt}
+                  onChange={e => setFormData({ ...formData, issuedAt: e.target.value })}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="paid"
+                type="checkbox"
+                checked={formData.paid}
+                onChange={e => setFormData({ ...formData, paid: e.target.checked })}
+              />
+              <label htmlFor="paid" className="text-sm text-gray-700">Factura pagada</label>
+            </div>
+            {formError && <div className="text-sm text-red-600">{formError}</div>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={closeForm} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
+              <button type="submit" className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white" disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </section>
   )
