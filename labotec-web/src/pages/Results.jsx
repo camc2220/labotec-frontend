@@ -4,6 +4,18 @@ import Table from '../components/Table'
 import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
+import { printRecords } from '../lib/print'
+
+const formatDateTime = value => {
+  if (!value) return ''
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return value
+  }
+}
 
 export default function Results() {
   const { user } = useAuth()
@@ -104,6 +116,23 @@ export default function Results() {
     }
   }
 
+  const handlePrint = () => {
+    printRecords({
+      title: isPatient ? 'Mis resultados' : 'Resultados de pacientes',
+      subtitle: 'Listado generado desde Labotec',
+      columns: [
+        ...(isPatient
+          ? []
+          : [{ header: 'Paciente', accessor: row => row.patientName ?? row.patientId ?? 'Sin nombre' }]),
+        { header: 'Prueba', accessor: row => row.testName ?? '' },
+        { header: 'Resultado', accessor: row => row.resultValue ?? '' },
+        { header: 'Unidad', accessor: row => row.unit ?? '' },
+        { header: 'Liberado', accessor: row => (row.releasedAt ? formatDateTime(row.releasedAt) : '') },
+      ],
+      rows: items,
+    })
+  }
+
   const columns = [
     ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
     { key: 'testName', header: 'Prueba' },
@@ -127,11 +156,21 @@ export default function Results() {
   ]
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold">{isPatient ? 'Mis resultados' : 'Resultados'}</h2>
-        {!isPatient && (
-          <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar resultado</button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="rounded-lg border border-sky-200 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+            disabled={items.length === 0}
+          >
+            Imprimir
+          </button>
+          {!isPatient && (
+            <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar resultado</button>
+          )}
+        </div>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       {loading ? (

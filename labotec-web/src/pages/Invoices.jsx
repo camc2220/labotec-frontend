@@ -4,6 +4,18 @@ import Table from '../components/Table'
 import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
+import { printRecords } from '../lib/print'
+
+const formatDate = value => {
+  if (!value) return ''
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('es-ES', { dateStyle: 'medium' })
+  } catch {
+    return value
+  }
+}
 
 export default function Invoices() {
   const { user } = useAuth()
@@ -104,6 +116,23 @@ export default function Invoices() {
     }
   }
 
+  const handlePrint = () => {
+    printRecords({
+      title: isPatient ? 'Mis facturas' : 'Facturas de pacientes',
+      subtitle: 'Listado generado desde Labotec',
+      columns: [
+        ...(isPatient
+          ? []
+          : [{ header: 'Paciente', accessor: row => row.patientName ?? row.patientId ?? 'Sin nombre' }]),
+        { header: 'Factura', accessor: row => row.number ?? '' },
+        { header: 'Monto', accessor: row => (row.amount ?? '') },
+        { header: 'Fecha', accessor: row => (row.issuedAt ? formatDate(row.issuedAt) : '') },
+        { header: 'Pagada', accessor: row => (row.paid ? 'Sí' : 'No') },
+      ],
+      rows: items,
+    })
+  }
+
   const columns = [
     ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
     { key: 'number', header: 'Factura' },
@@ -127,11 +156,21 @@ export default function Invoices() {
   ]
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold">{isPatient ? 'Mis facturas' : 'Facturas'}</h2>
-        {!isPatient && (
-          <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar factura</button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="rounded-lg border border-sky-200 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+            disabled={items.length === 0}
+          >
+            Imprimir
+          </button>
+          {!isPatient && (
+            <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar factura</button>
+          )}
+        </div>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       {loading ? (
