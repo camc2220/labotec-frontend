@@ -18,6 +18,21 @@ export default function UserManagement() {
   const [successMessage, setSuccessMessage] = useState('')
   const [updatingMap, setUpdatingMap] = useState({})
 
+  const resolveUserIdentifier = user => {
+    if (!user) return undefined
+    return (
+      resolveEntityId(user) ??
+      user.userId ??
+      user.userID ??
+      user.UserId ??
+      user.UserID ??
+      user.userName ??
+      user.username ??
+      user.email ??
+      user.name
+    )
+  }
+
   const normalizeUsers = data => {
     if (!data) return []
     if (Array.isArray(data)) return data
@@ -53,12 +68,12 @@ export default function UserManagement() {
   }, [isAdmin])
 
   const updateLocalRole = (entityId, newRole) => {
-    setItems(prev => prev.map(item => (resolveEntityId(item) === entityId ? { ...item, role: newRole } : item)))
+    setItems(prev => prev.map(item => (resolveUserIdentifier(item) === entityId ? { ...item, role: newRole } : item)))
   }
 
   const handleRoleChange = async (target, newRole) => {
     if (!isAdmin) return
-    const entityId = resolveEntityId(target)
+    const entityId = resolveUserIdentifier(target)
     if (!entityId || target.role === newRole) return
 
     setError('')
@@ -144,7 +159,7 @@ export default function UserManagement() {
       {loading ? (
         <div>Cargando usuarios...</div>
       ) : items.length > 0 ? (
-        <Table columns={columns} data={items} />
+        <Table columns={columns} data={items} rowKey={(row, idx) => resolveUserIdentifier(row) ?? idx} />
       ) : (
         <div className="text-sm text-gray-500">Aún no hay usuarios registrados.</div>
       )}

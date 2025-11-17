@@ -1,5 +1,19 @@
 import React from 'react'
-export default function Table({ columns, data }) {
+
+export default function Table({ columns, data, rowKey }) {
+  const resolveRowKey = (row, idx) => {
+    if (typeof rowKey === 'function') {
+      const result = rowKey(row, idx)
+      return result ?? idx
+    }
+
+    if (typeof rowKey === 'string' && row && row[rowKey] !== undefined && row[rowKey] !== null) {
+      return row[rowKey]
+    }
+
+    return idx
+  }
+
   return (
     <div className="overflow-x-auto bg-white shadow rounded-xl">
       <table className="min-w-full text-sm">
@@ -8,7 +22,7 @@ export default function Table({ columns, data }) {
         </thead>
         <tbody>
           {data.map((row, idx) => (
-            <tr key={idx} className="border-t">
+            <tr key={resolveRowKey(row, idx)} className="border-t">
               {columns.map(c => (<td key={c.key} className="px-3 py-2">{c.render ? c.render(row) : row[c.key]}</td>))}
             </tr>
           ))}

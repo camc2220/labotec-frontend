@@ -3,6 +3,10 @@ export function resolveEntityId(entity) {
   return (
     entity.id ??
     entity._id ??
+    entity.userId ??
+    entity.userID ??
+    entity.UserId ??
+    entity.UserID ??
     entity.patientId ??
     entity.resultId ??
     entity.invoiceId ??
