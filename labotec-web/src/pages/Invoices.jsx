@@ -1,10 +1,15 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
 import { printRecords } from '../lib/print'
+
+const getPatientKey = row => row?.patientId ?? row?.patientName ?? ''
+const getInvoiceKey = row =>
+  resolveEntityId(row) ??
+  `${getPatientKey(row)}-${row?.number ?? ''}-${row?.issuedAt ?? ''}-${row?.amount ?? ''}`
 
 const formatDate = value => {
   if (!value) return ''
@@ -33,6 +38,9 @@ export default function Invoices() {
     issuedAt: '',
     paid: false,
   })
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printPatientKey, setPrintPatientKey] = useState('')
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([])
 
   const isPatient = user?.role === 'patient'
   const endpoint = isPatient ? '/api/patients/me/invoices' : '/api/invoices'
@@ -116,21 +124,85 @@ export default function Invoices() {
     }
   }
 
-  const handlePrint = () => {
+  const patientOptions = useMemo(() => {
+    if (isPatient) return []
+    const map = new Map()
+    items.forEach(row => {
+      const key = getPatientKey(row)
+      if (!key || map.has(key)) return
+      map.set(key, {
+        key,
+        label: row.patientName ?? (row.patientId ? `Paciente #${row.patientId}` : 'Paciente sin identificación'),
+      })
+    })
+    return Array.from(map.values())
+  }, [isPatient, items])
+
+  useEffect(() => {
+    if (!printPatientKey) {
+      setSelectedInvoiceIds([])
+      return
+    }
+    const rows = items.filter(row => getPatientKey(row) === printPatientKey)
+    setSelectedInvoiceIds(rows.map(getInvoiceKey))
+  }, [items, printPatientKey])
+
+  const patientInvoices = useMemo(() => {
+    if (!printPatientKey) return []
+    return items.filter(row => getPatientKey(row) === printPatientKey)
+  }, [items, printPatientKey])
+
+  const selectedRows = useMemo(() => {
+    if (!printPatientKey || selectedInvoiceIds.length === 0) return []
+    const selectedSet = new Set(selectedInvoiceIds)
+    return items.filter(row => getPatientKey(row) === printPatientKey && selectedSet.has(getInvoiceKey(row)))
+  }, [items, printPatientKey, selectedInvoiceIds])
+
+  const toggleInvoiceSelection = id => {
+    setSelectedInvoiceIds(prev => (prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]))
+  }
+
+  const closePrintModal = () => {
+    setShowPrintModal(false)
+    setPrintPatientKey('')
+    setSelectedInvoiceIds([])
+  }
+
+  const printRows = rows => {
+    if (!rows || rows.length === 0) return
+    const title = isPatient
+      ? 'Mis facturas'
+      : rows.every(row => getPatientKey(row) === getPatientKey(rows[0]))
+        ? `Facturas de ${rows[0]?.patientName ?? 'paciente'}`
+        : 'Facturas de pacientes'
     printRecords({
-      title: isPatient ? 'Mis facturas' : 'Facturas de pacientes',
+      title,
       subtitle: 'Listado generado desde Labotec',
       columns: [
         ...(isPatient
           ? []
           : [{ header: 'Paciente', accessor: row => row.patientName ?? row.patientId ?? 'Sin nombre' }]),
         { header: 'Factura', accessor: row => row.number ?? '' },
-        { header: 'Monto', accessor: row => (row.amount ?? '') },
+        { header: 'Monto', accessor: row => row.amount ?? '' },
         { header: 'Fecha', accessor: row => (row.issuedAt ? formatDate(row.issuedAt) : '') },
         { header: 'Pagada', accessor: row => (row.paid ? 'Sí' : 'No') },
       ],
-      rows: items,
+      rows,
     })
+  }
+
+  const handlePrint = () => {
+    if (items.length === 0) return
+    if (isPatient) {
+      printRows(items)
+      return
+    }
+    setShowPrintModal(true)
+  }
+
+  const handleConfirmPrint = () => {
+    printRows(selectedRows)
+    closePrintModal()
   }
 
   const columns = [
@@ -241,6 +313,67 @@ export default function Invoices() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+      {showPrintModal && !isPatient && (
+        <Modal title="Imprimir facturas" onClose={closePrintModal}>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs text-gray-600">Paciente</label>
+              <select
+                value={printPatientKey}
+                onChange={e => setPrintPatientKey(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un paciente</option>
+                {patientOptions.map(option => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {printPatientKey && patientInvoices.length === 0 && (
+              <div className="text-sm text-gray-500">Este paciente no tiene facturas disponibles.</div>
+            )}
+            {printPatientKey && patientInvoices.length > 0 && (
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">
+                {patientInvoices.map(row => {
+                  const id = getInvoiceKey(row)
+                  return (
+                    <label key={id} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedInvoiceIds.includes(id)}
+                        onChange={() => toggleInvoiceSelection(id)}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-medium">{row.number ?? 'Sin número'}</span>
+                        <span className="block text-xs text-gray-500">
+                          {row.amount ?? 'Sin monto'} • {row.issuedAt ? formatDate(row.issuedAt) : 'Sin fecha'} •{' '}
+                          {row.paid ? 'Pagada' : 'Pendiente'}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={closePrintModal} className="rounded-lg border px-3 py-2 text-sm">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPrint}
+                className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white"
+                disabled={!printPatientKey || selectedRows.length === 0}
+              >
+                Imprimir seleccionadas
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </section>
