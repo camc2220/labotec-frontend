@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import api from '../lib/api'
 
 const testOptions = [
   'Perfil completo de laboratorio',
@@ -22,7 +23,8 @@ export default function Home() {
     email: '',
     phone: '',
     birthDate: '',
-    testType: ''
+    testType: '',
+    password: ''
   }
 
   const initialAppointment = {
@@ -37,6 +39,7 @@ export default function Home() {
   const [registerData, setRegisterData] = useState(initialRegister)
   const [appointmentData, setAppointmentData] = useState(initialAppointment)
   const [registerStatus, setRegisterStatus] = useState(null)
+  const [registerLoading, setRegisterLoading] = useState(false)
   const [appointmentStatus, setAppointmentStatus] = useState(null)
 
   const handleRegisterChange = (event) => {
@@ -49,7 +52,7 @@ export default function Home() {
     setAppointmentData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleRegisterSubmit = (event) => {
+  const handleRegisterSubmit = async (event) => {
     event.preventDefault()
 
     const hasEmptyFields = Object.values(registerData).some((value) => !value)
@@ -58,8 +61,27 @@ export default function Home() {
       return
     }
 
-    setRegisterStatus({ type: 'success', message: `¡Gracias ${registerData.fullName}! Nuestro equipo te contactará en breve para confirmar tu registro.` })
-    setRegisterData(initialRegister)
+    setRegisterLoading(true)
+    try {
+      const payload = {
+        fullName: registerData.fullName,
+        email: registerData.email,
+        phone: registerData.phone,
+        birthDate: registerData.birthDate,
+        testType: registerData.testType,
+        password: registerData.password,
+        role: 'patient',
+        userName: registerData.email || registerData.phone
+      }
+      await api.post('/api/auth/register', payload)
+      setRegisterStatus({ type: 'success', message: `¡Gracias ${registerData.fullName}! Hemos creado tu usuario para que puedas iniciar sesión en LABOTEC.` })
+      setRegisterData(initialRegister)
+    } catch (error) {
+      console.error(error)
+      setRegisterStatus({ type: 'error', message: 'No pudimos completar tu registro en este momento. Por favor intenta más tarde.' })
+    } finally {
+      setRegisterLoading(false)
+    }
   }
 
   const handleAppointmentSubmit = (event) => {
@@ -224,6 +246,20 @@ export default function Home() {
                 />
               </div>
               <div>
+                <label htmlFor="password" className="text-sm font-medium text-gray-700">Crea tu contraseña *</label>
+                <input
+                  id="password"
+                  name="password"
+                  value={registerData.password}
+                  onChange={handleRegisterChange}
+                  type="password"
+                  minLength={8}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  placeholder="Mínimo 8 caracteres"
+                />
+                <p className="mt-1 text-xs text-gray-500">Esta contraseña te permitirá ingresar al portal de pacientes.</p>
+              </div>
+              <div>
                 <label htmlFor="phone" className="text-sm font-medium text-gray-700">Teléfono de contacto *</label>
                 <input
                   id="phone"
@@ -262,8 +298,8 @@ export default function Home() {
                 </select>
               </div>
               <div className="md:col-span-2 flex flex-col gap-3">
-                <button type="submit" className="rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow hover:bg-sky-700">
-                  Registrarme como paciente
+                <button type="submit" className="rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow hover:bg-sky-700 disabled:opacity-60 disabled:cursor-not-allowed" disabled={registerLoading}>
+                  {registerLoading ? 'Enviando...' : 'Registrarme como paciente'}
                 </button>
                 {registerStatus && (
                   <p className={`text-sm ${registerStatus.type === 'success' ? 'text-emerald-600' : 'text-amber-600'}`}>
