@@ -1,10 +1,15 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
 import { printRecords } from '../lib/print'
+
+const getPatientKey = row => row?.patientId ?? row?.patientName ?? ''
+const getResultKey = row =>
+  resolveEntityId(row) ??
+  `${getPatientKey(row)}-${row?.testName ?? ''}-${row?.releasedAt ?? ''}-${row?.resultValue ?? ''}`
 
 const formatDateTime = value => {
   if (!value) return ''
@@ -33,6 +38,9 @@ export default function Results() {
     unit: '',
     releasedAt: '',
   })
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printPatientKey, setPrintPatientKey] = useState('')
+  const [selectedResultIds, setSelectedResultIds] = useState([])
 
   const isPatient = user?.role === 'patient'
   const endpoint = isPatient ? '/api/patients/me/results' : '/api/results'
@@ -116,9 +124,59 @@ export default function Results() {
     }
   }
 
-  const handlePrint = () => {
+  const patientOptions = useMemo(() => {
+    if (isPatient) return []
+    const map = new Map()
+    items.forEach(row => {
+      const key = getPatientKey(row)
+      if (!key || map.has(key)) return
+      map.set(key, {
+        key,
+        label: row.patientName ?? (row.patientId ? `Paciente #${row.patientId}` : 'Paciente sin identificación'),
+      })
+    })
+    return Array.from(map.values())
+  }, [isPatient, items])
+
+  useEffect(() => {
+    if (!printPatientKey) {
+      setSelectedResultIds([])
+      return
+    }
+    const rows = items.filter(row => getPatientKey(row) === printPatientKey)
+    setSelectedResultIds(rows.map(getResultKey))
+  }, [items, printPatientKey])
+
+  const patientResults = useMemo(() => {
+    if (!printPatientKey) return []
+    return items.filter(row => getPatientKey(row) === printPatientKey)
+  }, [items, printPatientKey])
+
+  const selectedRows = useMemo(() => {
+    if (!printPatientKey || selectedResultIds.length === 0) return []
+    const selectedSet = new Set(selectedResultIds)
+    return items.filter(row => getPatientKey(row) === printPatientKey && selectedSet.has(getResultKey(row)))
+  }, [items, printPatientKey, selectedResultIds])
+
+  const toggleResultSelection = id => {
+    setSelectedResultIds(prev => (prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]))
+  }
+
+  const closePrintModal = () => {
+    setShowPrintModal(false)
+    setPrintPatientKey('')
+    setSelectedResultIds([])
+  }
+
+  const printRows = rows => {
+    if (!rows || rows.length === 0) return
+    const title = isPatient
+      ? 'Mis resultados'
+      : rows.every(row => getPatientKey(row) === getPatientKey(rows[0]))
+        ? `Resultados de ${rows[0]?.patientName ?? 'paciente'}`
+        : 'Resultados de pacientes'
     printRecords({
-      title: isPatient ? 'Mis resultados' : 'Resultados de pacientes',
+      title,
       subtitle: 'Listado generado desde Labotec',
       columns: [
         ...(isPatient
@@ -129,8 +187,22 @@ export default function Results() {
         { header: 'Unidad', accessor: row => row.unit ?? '' },
         { header: 'Liberado', accessor: row => (row.releasedAt ? formatDateTime(row.releasedAt) : '') },
       ],
-      rows: items,
+      rows,
     })
+  }
+
+  const handlePrint = () => {
+    if (items.length === 0) return
+    if (isPatient) {
+      printRows(items)
+      return
+    }
+    setShowPrintModal(true)
+  }
+
+  const handleConfirmPrint = () => {
+    printRows(selectedRows)
+    closePrintModal()
   }
 
   const columns = [
@@ -238,6 +310,67 @@ export default function Results() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+      {showPrintModal && !isPatient && (
+        <Modal title="Imprimir resultados" onClose={closePrintModal}>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs text-gray-600">Paciente</label>
+              <select
+                value={printPatientKey}
+                onChange={e => setPrintPatientKey(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="">Selecciona un paciente</option>
+                {patientOptions.map(option => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {printPatientKey && patientResults.length === 0 && (
+              <div className="text-sm text-gray-500">Este paciente no tiene resultados disponibles.</div>
+            )}
+            {printPatientKey && patientResults.length > 0 && (
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">
+                {patientResults.map(row => {
+                  const id = getResultKey(row)
+                  return (
+                    <label key={id} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedResultIds.includes(id)}
+                        onChange={() => toggleResultSelection(id)}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-medium">{row.testName ?? 'Sin nombre'}</span>
+                        <span className="block text-xs text-gray-500">
+                          {row.resultValue ?? 'Sin resultado'} {row.unit ?? ''} •{' '}
+                          {row.releasedAt ? formatDateTime(row.releasedAt) : 'Sin fecha'}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={closePrintModal} className="rounded-lg border px-3 py-2 text-sm">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPrint}
+                className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white"
+                disabled={!printPatientKey || selectedRows.length === 0}
+              >
+                Imprimir seleccionados
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </section>
