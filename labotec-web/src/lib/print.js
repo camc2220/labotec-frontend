@@ -1,9 +1,10 @@
-const escapeHtml = value => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;')
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 
 export function printRecords({ title, subtitle = '', columns = [], rows = [] }) {
   if (typeof window === 'undefined') return
@@ -14,16 +15,19 @@ export function printRecords({ title, subtitle = '', columns = [], rows = [] }) 
 
   const printWindow = window.open('', '', 'width=900,height=650')
   if (!printWindow) {
-    window.alert('No pudimos abrir la ventana de impresión. Revisa que el navegador no bloquee ventanas emergentes.')
+    window.alert(
+      'No pudimos abrir la ventana de impresión. Revisa que el navegador no bloquee ventanas emergentes.'
+    )
     return
   }
 
-  const headerCells = columns.map(col => `<th>${escapeHtml(col.header)}</th>`).join('')
+  const headerCells = columns.map((col) => `<th>${escapeHtml(col.header)}</th>`).join('')
   const bodyRows = rows
     .map((row, index) => {
       const cells = columns
-        .map(col => {
-          const value = typeof col.accessor === 'function' ? col.accessor(row, index) : row[col.key]
+        .map((col) => {
+          const value =
+            typeof col.accessor === 'function' ? col.accessor(row, index) : row[col.key]
           return `<td>${escapeHtml(value ?? '')}</td>`
         })
         .join('')
@@ -31,7 +35,10 @@ export function printRecords({ title, subtitle = '', columns = [], rows = [] }) 
     })
     .join('')
 
-  const generatedAt = new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+  const generatedAt = new Date().toLocaleString('es-ES', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 
   printWindow.document.write(`<!DOCTYPE html>
 <html lang="es">
@@ -40,7 +47,7 @@ export function printRecords({ title, subtitle = '', columns = [], rows = [] }) 
   <title>${escapeHtml(title)}</title>
   <style>
     body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       margin: 0;
       padding: 24px;
       background: #f8fafc;

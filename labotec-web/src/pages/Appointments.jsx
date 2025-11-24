@@ -2,18 +2,26 @@ import React, { useEffect, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
-import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
+
+// Helper para convertir ISO string a formato input datetime-local (yyyy-MM-ddThh:mm)
+const toInputDate = (isoString) => {
+  if (!isoString) return ''
+  return isoString.slice(0, 16)
+}
 
 export default function Appointments() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  
+  // Estado del formulario
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+
   const [formData, setFormData] = useState({
     patientId: '',
     scheduledAt: '',
@@ -22,41 +30,59 @@ export default function Appointments() {
     notes: '',
   })
 
-  const isPatient = user?.role === 'patient'
-  const endpoint = isPatient ? '/api/patients/me/appointments' : '/api/appointments'
+  // Detectar si es solo paciente
+  const isPatient = user?.isPaciente && !user?.isAdmin && !user?.isRecepcion
 
   const fetchData = async () => {
     if (!user) return
     setLoading(true)
     setError('')
     try {
-      const res = await api.get(endpoint, { params: { page: 1, pageSize: 20, sortDir: isPatient ? 'asc' : 'desc' } })
-      setItems(res.data.items ?? res.data.Items ?? [])
+      // Backend devuelve { items: [...], totalCount: ... }
+      const res = await api.get('/api/appointments', {
+        params: {
+          page: 1,
+          pageSize: 50,
+          sortDir: 'desc',
+          // Si es paciente, el backend ya filtra por User.GetPatientId(), 
+          // pero si es admin, podemos filtrar opcionalmente.
+        },
+      })
+      
+      const data = res.data
+      setItems(data.items || [])
     } catch (err) {
       console.error(err)
-      setError('No pudimos cargar las citas. Intenta nuevamente más tarde.')
+      setError('No pudimos cargar las citas.')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (user) fetchData()
-  }, [endpoint, user])
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const openForm = item => {
+  const openForm = (item) => {
     if (item) {
-      setFormData({
-        patientId: item.patientId ?? '',
-        scheduledAt: item.scheduledAt ? item.scheduledAt.slice(0, 16) : '',
-        type: item.type ?? '',
-        status: item.status ?? '',
-        notes: item.notes ?? '',
-      })
       setEditingItem(item)
+      setFormData({
+        patientId: item.patientId,
+        scheduledAt: toInputDate(item.scheduledAt),
+        type: item.type,
+        status: item.status,
+        notes: item.notes || '',
+      })
     } else {
-      setFormData({ patientId: '', scheduledAt: '', type: '', status: '', notes: '' })
       setEditingItem(null)
+      setFormData({
+        patientId: '',
+        scheduledAt: '',
+        type: 'Laboratorio',
+        status: 'Scheduled',
+        notes: '',
+      })
     }
     setFormError('')
     setShowForm(true)
@@ -64,144 +90,165 @@ export default function Appointments() {
 
   const closeForm = () => {
     setShowForm(false)
-    setFormError('')
     setEditingItem(null)
   }
 
-  const handleFormSubmit = async e => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault()
-    if (isPatient) return
     setSaving(true)
     setFormError('')
+
     try {
-      const payload = { ...formData, scheduledAt: formData.scheduledAt }
       if (editingItem) {
-        await api.put(`/api/appointments/${resolveEntityId(editingItem)}`, payload)
+        // Update (PUT)
+        await api.put(`/api/appointments/${editingItem.id}`, {
+          scheduledAt: formData.scheduledAt,
+          type: formData.type,
+          status: formData.status,
+          notes: formData.notes
+        })
       } else {
-        await api.post('/api/appointments', payload)
+        // Create (POST)
+        // Si es admin, usa el patientId del form. Si es paciente, el backend ignora esto y usa el token.
+        await api.post('/api/appointments', {
+          patientId: formData.patientId || user.patientId, // Fallback
+          scheduledAt: formData.scheduledAt,
+          type: formData.type,
+          notes: formData.notes
+        })
       }
       closeForm()
       fetchData()
     } catch (err) {
       console.error(err)
-      setFormError('No pudimos guardar la cita. Revisa los datos e intenta nuevamente.')
+      setFormError('Error al guardar. Verifique los datos.')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async item => {
-    if (isPatient) return
-    const id = resolveEntityId(item)
-    if (!id) return
-    if (!window.confirm('¿Eliminar esta cita?')) return
+  const handleDelete = async (item) => {
+    if (!window.confirm('¿Eliminar cita?')) return
     try {
-      await api.delete(`/api/appointments/${id}`)
+      await api.delete(`/api/appointments/${item.id}`)
       fetchData()
     } catch (err) {
-      console.error(err)
-      setError('No pudimos eliminar la cita.')
+      alert('Error al eliminar')
     }
   }
 
   const columns = [
-    ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
-    { key: 'scheduledAt', header: 'Fecha/Hora' },
+    // Solo mostrar columna Paciente si NO es paciente
+    ...(!isPatient ? [{ key: 'patientName', header: 'Paciente' }] : []),
+    { 
+      key: 'scheduledAt', 
+      header: 'Fecha',
+      render: (row) => new Date(row.scheduledAt).toLocaleString() 
+    },
     { key: 'type', header: 'Tipo' },
     { key: 'status', header: 'Estado' },
     { key: 'notes', header: 'Notas' },
-    ...(!isPatient
-      ? [
-        {
-          key: 'actions',
-          header: 'Acciones',
-          render: row => (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">Editar</button>
-              <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
-            </div>
-          ),
-        },
-      ]
-      : []),
+    ...(!isPatient ? [{
+      key: 'actions',
+      header: 'Acciones',
+      render: (row) => (
+        <div className="flex gap-2">
+          <button onClick={() => openForm(row)} className="text-blue-600 text-xs hover:underline">Editar</button>
+          <button onClick={() => handleDelete(row)} className="text-red-600 text-xs hover:underline">Eliminar</button>
+        </div>
+      )
+    }] : [])
   ]
+
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{isPatient ? 'Mis citas' : 'Citas'}</h2>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">Citas</h2>
+        {/* Paciente NO puede crear citas en este panel administrativo, admin sí */}
         {!isPatient && (
-          <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar cita</button>
+          <button onClick={() => openForm(null)} className="bg-emerald-600 text-white px-3 py-2 rounded text-sm">
+            Nueva Cita
+          </button>
         )}
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {loading ? (
-        <div>Cargando...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} />
-      ) : (
-        <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes citas programadas.' : 'No hay citas registradas.'}</div>
+
+      {error && <p className="text-red-600">{error}</p>}
+      
+      {loading ? <p>Cargando...</p> : (
+        <Table columns={columns} data={items} rowKey="id" />
       )}
-      {showForm && !isPatient && (
-        <Modal title={editingItem ? 'Editar cita' : 'Agregar cita'} onClose={closeForm}>
-          <form onSubmit={handleFormSubmit} className="space-y-4">
+
+      {showForm && (
+        <Modal title={editingItem ? "Editar Cita" : "Nueva Cita"} onClose={closeForm}>
+          <form onSubmit={handleFormSubmit} className="space-y-3">
+            {!isPatient && (
+              <div>
+                <label className="block text-xs font-bold">ID Paciente</label>
+                <input 
+                  className="w-full border p-2 rounded" 
+                  value={formData.patientId}
+                  onChange={e => setFormData({...formData, patientId: e.target.value})}
+                  disabled={!!editingItem} // No cambiar paciente al editar
+                  placeholder="GUID del paciente"
+                  required
+                />
+              </div>
+            )}
+            
             <div>
-              <label className="block text-xs text-gray-600 mb-1">ID del paciente</label>
-              <input
-                value={formData.patientId}
-                onChange={e => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Fecha y hora</label>
-              <input
+              <label className="block text-xs font-bold">Fecha</label>
+              <input 
                 type="datetime-local"
+                className="w-full border p-2 rounded"
                 value={formData.scheduledAt}
-                onChange={e => setFormData({ ...formData, scheduledAt: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
+                onChange={e => setFormData({...formData, scheduledAt: e.target.value})}
                 required
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Tipo</label>
-                <input
+                <label className="block text-xs font-bold">Tipo</label>
+                <input 
+                  className="w-full border p-2 rounded"
                   value={formData.type}
-                  onChange={e => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  required
+                  onChange={e => setFormData({...formData, type: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Estado</label>
-                <input
+                <label className="block text-xs font-bold">Estado</label>
+                <select 
+                  className="w-full border p-2 rounded"
                   value={formData.status}
-                  onChange={e => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  required
-                />
+                  onChange={e => setFormData({...formData, status: e.target.value})}
+                >
+                  <option value="Scheduled">Programada</option>
+                  <option value="Completed">Completada</option>
+                  <option value="Canceled">Cancelada</option>
+                </select>
               </div>
             </div>
+
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Notas</label>
-              <textarea
+              <label className="block text-xs font-bold">Notas</label>
+              <textarea 
+                className="w-full border p-2 rounded"
                 value={formData.notes}
-                onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                rows={3}
+                onChange={e => setFormData({...formData, notes: e.target.value})}
               />
             </div>
-            {formError && <div className="text-sm text-red-600">{formError}</div>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={closeForm} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white" disabled={saving}>
+
+            {formError && <p className="text-red-600 text-xs">{formError}</p>}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button type="button" onClick={closeForm} className="px-3 py-2 border rounded">Cancelar</button>
+              <button type="submit" disabled={saving} className="px-3 py-2 bg-blue-600 text-white rounded">
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </form>
         </Modal>
       )}
-    </section>
+    </div>
   )
 }

@@ -1,378 +1,205 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
-import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
-import { printRecords } from '../lib/print'
-
-const getPatientKey = row => row?.patientId ?? row?.patientName ?? ''
-const getResultKey = row =>
-  resolveEntityId(row) ??
-  `${getPatientKey(row)}-${row?.testName ?? ''}-${row?.releasedAt ?? ''}-${row?.resultValue ?? ''}`
-
-const formatDateTime = value => {
-  if (!value) return ''
-  try {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return value
-  }
-}
 
 export default function Results() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  
+  // Form states
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState({
     patientId: '',
     testName: '',
     resultValue: '',
     unit: '',
-    releasedAt: '',
+    releasedAt: ''
   })
-  const [showPrintModal, setShowPrintModal] = useState(false)
-  const [printPatientKey, setPrintPatientKey] = useState('')
-  const [selectedResultIds, setSelectedResultIds] = useState([])
 
-  const isPatient = user?.role === 'patient'
-  const endpoint = isPatient ? '/api/patients/me/results' : '/api/results'
+  const isPatient = user?.isPaciente && !user?.isAdmin
 
   const fetchData = async () => {
-    if (!user) return
-    setLoading(true)
-    setError('')
     try {
-      const res = await api.get(endpoint, { params: { page: 1, pageSize: 20, sortDir: 'desc' } })
-      setItems(res.data.items ?? res.data.Items ?? [])
-    } catch (err) {
-      console.error(err)
-      setError('No pudimos cargar los resultados. Intenta nuevamente más tarde.')
+      setLoading(true)
+      const res = await api.get('/api/results', {
+        params: { page: 1, pageSize: 50, sortDir: 'desc' }
+      })
+      setItems(res.data.items || [])
+    } catch (e) {
+      console.error(e)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (user) fetchData()
-  }, [endpoint, user])
+    if(user) fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
-  const openForm = item => {
+  // --- Handlers ---
+  const handleOpenForm = (item) => {
     if (item) {
-      setFormData({
-        patientId: item.patientId ?? '',
-        testName: item.testName ?? '',
-        resultValue: item.resultValue ?? '',
-        unit: item.unit ?? '',
-        releasedAt: item.releasedAt ? item.releasedAt.slice(0, 16) : '',
-      })
       setEditingItem(item)
+      setFormData({
+        patientId: item.patientId,
+        testName: item.testName,
+        resultValue: item.resultValue,
+        unit: item.unit,
+        releasedAt: item.releasedAt ? item.releasedAt.slice(0, 16) : ''
+      })
     } else {
-      setFormData({ patientId: '', testName: '', resultValue: '', unit: '', releasedAt: '' })
       setEditingItem(null)
+      setFormData({
+        patientId: '',
+        testName: '',
+        resultValue: '',
+        unit: '',
+        releasedAt: new Date().toISOString().slice(0, 16)
+      })
     }
-    setFormError('')
     setShowForm(true)
   }
 
-  const closeForm = () => {
-    setShowForm(false)
-    setFormError('')
-    setEditingItem(null)
-  }
-
-  const handleFormSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (isPatient) return
     setSaving(true)
-    setFormError('')
     try {
-      const payload = { ...formData }
       if (editingItem) {
-        await api.put(`/api/results/${resolveEntityId(editingItem)}`, payload)
+        await api.put(`/api/results/${editingItem.id}`, formData)
       } else {
-        await api.post('/api/results', payload)
+        await api.post('/api/results', formData)
       }
-      closeForm()
+      setShowForm(false)
       fetchData()
-    } catch (err) {
-      console.error(err)
-      setFormError('No pudimos guardar el resultado. Revisa los datos e intenta nuevamente.')
+    } catch (error) {
+      alert('Error al guardar')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async item => {
-    if (isPatient) return
-    const id = resolveEntityId(item)
-    if (!id) return
-    if (!window.confirm('¿Eliminar este resultado?')) return
+  const handleDelete = async (id) => {
+    if(!window.confirm('¿Borrar resultado?')) return
     try {
       await api.delete(`/api/results/${id}`)
       fetchData()
-    } catch (err) {
-      console.error(err)
-      setError('No pudimos eliminar el resultado.')
+    } catch (e) {
+      alert('Error')
     }
   }
 
-  const patientOptions = useMemo(() => {
-    if (isPatient) return []
-    const map = new Map()
-    items.forEach(row => {
-      const key = getPatientKey(row)
-      if (!key || map.has(key)) return
-      map.set(key, {
-        key,
-        label: row.patientName ?? (row.patientId ? `Paciente #${row.patientId}` : 'Paciente sin identificación'),
-      })
-    })
-    return Array.from(map.values())
-  }, [isPatient, items])
-
-  useEffect(() => {
-    if (!printPatientKey) {
-      setSelectedResultIds([])
-      return
-    }
-    const rows = items.filter(row => getPatientKey(row) === printPatientKey)
-    setSelectedResultIds(rows.map(getResultKey))
-  }, [items, printPatientKey])
-
-  const patientResults = useMemo(() => {
-    if (!printPatientKey) return []
-    return items.filter(row => getPatientKey(row) === printPatientKey)
-  }, [items, printPatientKey])
-
-  const selectedRows = useMemo(() => {
-    if (!printPatientKey || selectedResultIds.length === 0) return []
-    const selectedSet = new Set(selectedResultIds)
-    return items.filter(row => getPatientKey(row) === printPatientKey && selectedSet.has(getResultKey(row)))
-  }, [items, printPatientKey, selectedResultIds])
-
-  const toggleResultSelection = id => {
-    setSelectedResultIds(prev => (prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]))
-  }
-
-  const closePrintModal = () => {
-    setShowPrintModal(false)
-    setPrintPatientKey('')
-    setSelectedResultIds([])
-  }
-
-  const printRows = rows => {
-    if (!rows || rows.length === 0) return
-    const title = isPatient
-      ? 'Mis resultados'
-      : rows.every(row => getPatientKey(row) === getPatientKey(rows[0]))
-        ? `Resultados de ${rows[0]?.patientName ?? 'paciente'}`
-        : 'Resultados de pacientes'
-    printRecords({
-      title,
-      subtitle: 'Listado generado desde Labotec',
-      columns: [
-        ...(isPatient
-          ? []
-          : [{ header: 'Paciente', accessor: row => row.patientName ?? row.patientId ?? 'Sin nombre' }]),
-        { header: 'Prueba', accessor: row => row.testName ?? '' },
-        { header: 'Resultado', accessor: row => row.resultValue ?? '' },
-        { header: 'Unidad', accessor: row => row.unit ?? '' },
-        { header: 'Liberado', accessor: row => (row.releasedAt ? formatDateTime(row.releasedAt) : '') },
-      ],
-      rows,
-    })
-  }
-
-  const handlePrint = () => {
-    if (items.length === 0) return
-    if (isPatient) {
-      printRows(items)
-      return
-    }
-    setShowPrintModal(true)
-  }
-
-  const handleConfirmPrint = () => {
-    printRows(selectedRows)
-    closePrintModal()
-  }
-
+  // --- Columns ---
   const columns = [
-    ...(isPatient ? [] : [{ key: 'patientName', header: 'Paciente' }]),
+    ...(!isPatient ? [{ key: 'patientName', header: 'Paciente' }] : []),
     { key: 'testName', header: 'Prueba' },
     { key: 'resultValue', header: 'Resultado' },
     { key: 'unit', header: 'Unidad' },
-    { key: 'releasedAt', header: 'Liberado' },
-    ...(!isPatient
-      ? [
-        {
-          key: 'actions',
-          header: 'Acciones',
-          render: row => (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">Editar</button>
-              <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
-            </div>
-          ),
-        },
-      ]
-      : []),
+    { 
+      key: 'releasedAt', 
+      header: 'Fecha',
+      render: (row) => new Date(row.releasedAt).toLocaleDateString()
+    },
+    {
+      key: 'pdfUrl',
+      header: 'PDF',
+      render: (row) => row.pdfUrl ? (
+        <a href={row.pdfUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">Ver PDF</a>
+      ) : <span className="text-gray-400 text-xs">-</span>
+    }
   ]
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{isPatient ? 'Mis resultados' : 'Resultados'}</h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="rounded-lg border border-sky-200 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
-            disabled={items.length === 0}
-          >
-            Imprimir
-          </button>
-          {!isPatient && (
-            <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar resultado</button>
-          )}
+
+  if (!isPatient) {
+    columns.push({
+      key: 'actions',
+      header: 'Acciones',
+      render: (row) => (
+        <div className="flex gap-2">
+          <button onClick={() => handleOpenForm(row)} className="text-blue-600 text-xs">Editar</button>
+          <button onClick={() => handleDelete(row.id)} className="text-red-600 text-xs">Borrar</button>
         </div>
+      )
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">Resultados de Laboratorio</h2>
+        {!isPatient && (
+          <button onClick={() => handleOpenForm(null)} className="bg-emerald-600 text-white px-3 py-2 rounded text-sm">
+            Nuevo Resultado
+          </button>
+        )}
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {loading ? (
-        <div>Cargando...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} />
-      ) : (
-        <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes resultados disponibles.' : 'No hay resultados registrados.'}</div>
-      )}
-      {showForm && !isPatient && (
-        <Modal title={editingItem ? 'Editar resultado' : 'Agregar resultado'} onClose={closeForm}>
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">ID del paciente</label>
-              <input
-                value={formData.patientId}
-                onChange={e => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Prueba</label>
-              <input
-                value={formData.testName}
-                onChange={e => setFormData({ ...formData, testName: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+
+      {loading ? <p>Cargando...</p> : <Table columns={columns} data={items} rowKey="id"/>}
+
+      {showForm && (
+        <Modal title={editingItem ? "Editar" : "Crear"} onClose={() => setShowForm(false)}>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {!isPatient && (
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Resultado</label>
-                <input
+                <label className="text-xs font-bold">ID Paciente</label>
+                <input 
+                  className="w-full border p-2 rounded"
+                  value={formData.patientId}
+                  onChange={e => setFormData({...formData, patientId: e.target.value})}
+                  required
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-bold">Prueba</label>
+              <input 
+                className="w-full border p-2 rounded"
+                value={formData.testName}
+                onChange={e => setFormData({...formData, testName: e.target.value})}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-bold">Valor</label>
+                <input 
+                  className="w-full border p-2 rounded"
                   value={formData.resultValue}
-                  onChange={e => setFormData({ ...formData, resultValue: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  onChange={e => setFormData({...formData, resultValue: e.target.value})}
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Unidad</label>
-                <input
+                <label className="text-xs font-bold">Unidad</label>
+                <input 
+                  className="w-full border p-2 rounded"
                   value={formData.unit}
-                  onChange={e => setFormData({ ...formData, unit: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  onChange={e => setFormData({...formData, unit: e.target.value})}
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Fecha de liberación</label>
-              <input
+              <label className="text-xs font-bold">Fecha</label>
+              <input 
                 type="datetime-local"
+                className="w-full border p-2 rounded"
                 value={formData.releasedAt}
-                onChange={e => setFormData({ ...formData, releasedAt: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                required
+                onChange={e => setFormData({...formData, releasedAt: e.target.value})}
               />
             </div>
-            {formError && <div className="text-sm text-red-600">{formError}</div>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={closeForm} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white" disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
+            
+            <div className="flex justify-end mt-4">
+              <button disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded">
+                Guardar
               </button>
             </div>
           </form>
         </Modal>
       )}
-      {showPrintModal && !isPatient && (
-        <Modal title="Imprimir resultados" onClose={closePrintModal}>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">Paciente</label>
-              <select
-                value={printPatientKey}
-                onChange={e => setPrintPatientKey(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="">Selecciona un paciente</option>
-                {patientOptions.map(option => (
-                  <option key={option.key} value={option.key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {printPatientKey && patientResults.length === 0 && (
-              <div className="text-sm text-gray-500">Este paciente no tiene resultados disponibles.</div>
-            )}
-            {printPatientKey && patientResults.length > 0 && (
-              <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">
-                {patientResults.map(row => {
-                  const id = getResultKey(row)
-                  return (
-                    <label key={id} className="flex items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedResultIds.includes(id)}
-                        onChange={() => toggleResultSelection(id)}
-                        className="mt-1"
-                      />
-                      <span>
-                        <span className="font-medium">{row.testName ?? 'Sin nombre'}</span>
-                        <span className="block text-xs text-gray-500">
-                          {row.resultValue ?? 'Sin resultado'} {row.unit ?? ''} •{' '}
-                          {row.releasedAt ? formatDateTime(row.releasedAt) : 'Sin fecha'}
-                        </span>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={closePrintModal} className="rounded-lg border px-3 py-2 text-sm">
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmPrint}
-                className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white"
-                disabled={!printPatientKey || selectedRows.length === 0}
-              >
-                Imprimir seleccionados
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </section>
+    </div>
   )
 }

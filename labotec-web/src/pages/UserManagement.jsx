@@ -2,57 +2,38 @@ import React, { useEffect, useMemo, useState } from 'react'
 import api from '../lib/api'
 import Table from '../components/Table'
 import { useAuth } from '../context/AuthContext'
-import { resolveEntityId } from '../lib/entity'
 
+// Opciones para el select de roles
 const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Administrador' },
-  { value: 'patient', label: 'Paciente' },
+  { value: 'Admin', label: 'Administrador' },
+  { value: 'Recepcion', label: 'Recepción' },
+  { value: 'Facturacion', label: 'Facturación' },
+  { value: 'Paciente', label: 'Paciente' },
 ]
 
 export default function UserManagement() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.isAdmin
+  
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  
+  // Mapa para deshabilitar filas mientras se guardan
   const [updatingMap, setUpdatingMap] = useState({})
-
-  const resolveUserIdentifier = user => {
-    if (!user) return undefined
-    return (
-      resolveEntityId(user) ??
-      user.userId ??
-      user.userID ??
-      user.UserId ??
-      user.UserID ??
-      user.userName ??
-      user.username ??
-      user.email ??
-      user.name
-    )
-  }
-
-  const normalizeUsers = data => {
-    if (!data) return []
-    if (Array.isArray(data)) return data
-    if (Array.isArray(data?.items)) return data.items
-    if (Array.isArray(data?.Users)) return data.Users
-    if (Array.isArray(data?.results)) return data.results
-    return []
-  }
 
   const fetchUsers = async () => {
     if (!isAdmin) return
     setLoading(true)
     setError('')
-    setSuccessMessage('')
     try {
+      // El endpoint /api/users devuelve un array directo: [ { id, userName... }, ... ]
       const res = await api.get('/api/users')
-      setItems(normalizeUsers(res.data))
+      setItems(Array.isArray(res.data) ? res.data : [])
     } catch (err) {
       console.error(err)
-      setError('No pudimos cargar los usuarios registrados. Intenta nuevamente más tarde.')
+      setError('Error al cargar usuarios.')
       setItems([])
     } finally {
       setLoading(false)
@@ -65,69 +46,76 @@ export default function UserManagement() {
     } else {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
 
-  const updateLocalRole = (entityId, newRole) => {
-    setItems(prev => prev.map(item => (resolveUserIdentifier(item) === entityId ? { ...item, role: newRole } : item)))
-  }
-
-  const handleRoleChange = async (target, newRole) => {
-    if (!isAdmin) return
-    const entityId = resolveUserIdentifier(target)
-    if (!entityId || target.role === newRole) return
-
+  const handleRoleChange = async (userId, newRole) => {
+    if (!userId) return
     setError('')
     setSuccessMessage('')
-    setUpdatingMap(prev => ({ ...prev, [entityId]: true }))
-    const previousRole = target.role
-    updateLocalRole(entityId, newRole)
+    
+    // Marcar como actualizando
+    setUpdatingMap(prev => ({ ...prev, [userId]: true }))
 
     try {
-      await api.put(`/api/users/${entityId}`, { role: newRole })
-      setSuccessMessage('El rol del usuario se actualizó correctamente.')
+      // El backend espera: { roles: ["NuevoRol"] }
+      // Nota: El DTO UserUpdateDto tiene una propiedad 'Roles' (lista)
+      await api.put(`/api/users/${userId}`, { 
+        roles: [newRole] 
+      })
+      
+      setSuccessMessage('Rol actualizado correctamente.')
+      fetchUsers() // Recargar lista
     } catch (err) {
       console.error(err)
-      updateLocalRole(entityId, previousRole)
-      setError('No pudimos actualizar el rol. Intenta nuevamente más tarde.')
+      setError(err.response?.data?.message || 'Error al actualizar el rol.')
     } finally {
       setUpdatingMap(prev => {
         const copy = { ...prev }
-        delete copy[entityId]
+        delete copy[userId]
         return copy
       })
     }
   }
 
+  // Definición de columnas
   const columns = useMemo(() => {
     if (!isAdmin) return []
     return [
-      { key: 'name', header: 'Nombre' },
-      { key: 'email', header: 'Correo electrónico' },
+      { key: 'userName', header: 'Usuario' },
+      { key: 'email', header: 'Email' },
       {
-        key: 'role',
-        header: 'Rol actual',
-        render: row => (
-          <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-1 text-xs text-sky-700">
-            {row.role === 'admin' ? 'Administrador' : 'Paciente'}
-          </span>
-        ),
+        key: 'roles',
+        header: 'Roles',
+        render: (row) => {
+          // El backend devuelve 'roles' como array de strings
+          const rolesStr = row.roles?.join(', ') || 'Sin rol'
+          return (
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-1 text-xs text-sky-700 font-medium">
+              {rolesStr}
+            </span>
+          )
+        },
       },
       {
         key: 'actions',
-        header: 'Cambiar rol',
-        render: row => {
-          const entityId = resolveEntityId(row)
-          const isUpdating = !!updatingMap[entityId]
+        header: 'Cambiar Rol',
+        render: (row) => {
+          const isUpdating = !!updatingMap[row.id]
+          // Tomamos el primer rol como valor actual para el select
+          const currentRole = row.roles?.[0] || ''
+
           return (
             <select
-              className="border rounded-lg px-2 py-1 text-sm"
-              value={row.role}
+              className="border rounded px-2 py-1 text-sm bg-white"
+              value={currentRole}
               disabled={isUpdating}
-              onChange={e => handleRoleChange(row, e.target.value)}
+              onChange={(e) => handleRoleChange(row.id, e.target.value)}
             >
-              {ROLE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              <option value="">Seleccionar...</option>
+              {ROLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -138,30 +126,33 @@ export default function UserManagement() {
   }, [isAdmin, updatingMap])
 
   if (!isAdmin) {
-    return (
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Gestión de usuarios</h2>
-        <p className="text-sm text-gray-600">Esta sección está disponible únicamente para administradores.</p>
-      </section>
-    )
+    return <div className="p-4">Acceso denegado.</div>
   }
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Gestión de usuarios</h2>
-        <button onClick={fetchUsers} className="bg-sky-600 text-white rounded-lg px-3 py-2 text-sm" disabled={loading}>
-          Actualizar lista
+        <h2 className="text-xl font-semibold">Gestión de Usuarios</h2>
+        <button
+          onClick={fetchUsers}
+          className="bg-sky-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-sky-700 transition"
+          disabled={loading}
+        >
+          Refrescar
         </button>
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {successMessage && <div className="text-sm text-emerald-600">{successMessage}</div>}
+
+      {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
+      {successMessage && <div className="text-sm text-emerald-600 bg-emerald-50 p-2 rounded">{successMessage}</div>}
+
       {loading ? (
-        <div>Cargando usuarios...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} rowKey={(row, idx) => resolveUserIdentifier(row) ?? idx} />
+        <div className="text-gray-500">Cargando...</div>
       ) : (
-        <div className="text-sm text-gray-500">Aún no hay usuarios registrados.</div>
+        <Table
+          columns={columns}
+          data={items}
+          rowKey="id" 
+        />
       )}
     </section>
   )
