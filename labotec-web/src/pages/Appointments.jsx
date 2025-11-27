@@ -6,6 +6,16 @@ import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
 import PatientSelect from '../components/PatientSelect'
 
+const typeOptions = [
+  'Perfil completo de laboratorio',
+  'Prueba de COVID-19',
+  'Perfil tiroideo',
+  'Panel prenatal',
+  'Chequeo ejecutivo',
+]
+
+const statusOptions = ['Urgente', 'Rutinario', 'Normal']
+
 export default function Appointments() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
@@ -25,6 +35,14 @@ export default function Appointments() {
 
   const isPatient = user?.role === 'patient'
   const endpoint = isPatient ? '/api/patients/me/appointments' : '/api/appointments'
+
+  const availableTypeOptions = formData.type && !typeOptions.includes(formData.type)
+    ? [formData.type, ...typeOptions]
+    : typeOptions
+
+  const availableStatusOptions = formData.status && !statusOptions.includes(formData.status)
+    ? [formData.status, ...statusOptions]
+    : statusOptions
 
   const fetchData = async () => {
     if (!user) return
@@ -209,21 +227,35 @@ export default function Appointments() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Tipo</label>
-                <input
+                <select
                   value={formData.type}
                   onChange={e => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                   required
-                />
+                >
+                  <option value="">Selecciona una opción</option>
+                  {availableTypeOptions.map(option => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Estado</label>
-                <input
+                <select
                   value={formData.status}
                   onChange={e => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                   required
-                />
+                >
+                  <option value="">Selecciona una opción</option>
+                  {availableStatusOptions.map(option => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div>
