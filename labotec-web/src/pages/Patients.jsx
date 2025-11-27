@@ -11,10 +11,12 @@ export default function Patients() {
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [creatingMap, setCreatingMap] = useState({})
   const [formData, setFormData] = useState({
     fullName: '',
     documentId: '',
@@ -34,6 +36,7 @@ export default function Patients() {
     if (user?.role !== 'admin') return
     setLoading(true)
     setError('')
+    setSuccessMessage('')
     try {
       const res = await api.get('/api/patients', { params: { q, page: 1, pageSize: 20, sortDir: 'asc' } })
       setItems(res.data.items ?? res.data.Items ?? [])
@@ -112,6 +115,36 @@ export default function Patients() {
     }
   }
 
+  const hasUserAccount = patient => {
+    if (!patient) return false
+    return Boolean(patient.userId ?? patient.userID ?? patient.UserId ?? patient.UserID ?? patient.userName ?? patient.username)
+  }
+
+  const handleCreateUser = async patient => {
+    if (user?.role !== 'admin') return
+    const id = resolveEntityId(patient)
+    if (!id || hasUserAccount(patient)) return
+
+    setError('')
+    setSuccessMessage('')
+    setCreatingMap(prev => ({ ...prev, [id]: true }))
+
+    try {
+      await api.post(`/api/patients/${id}/create-user`)
+      setSuccessMessage('Se creó el usuario del paciente correctamente.')
+      fetchData()
+    } catch (err) {
+      console.error(err)
+      setError('No pudimos crear el usuario para este paciente. Intenta nuevamente más tarde.')
+    } finally {
+      setCreatingMap(prev => {
+        const copy = { ...prev }
+        delete copy[id]
+        return copy
+      })
+    }
+  }
+
   const columns = [
     { key: 'fullName', header: 'Nombre' },
     { key: 'documentId', header: 'Documento' },
@@ -127,6 +160,15 @@ export default function Patients() {
         </span>
       ),
     },
+    {
+      key: 'userStatus',
+      header: 'Usuario',
+      render: row => (
+        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${hasUserAccount(row) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+          {hasUserAccount(row) ? 'Cuenta creada' : 'Sin usuario'}
+        </span>
+      ),
+    },
     ...(user?.role === 'admin'
       ? [
         {
@@ -136,6 +178,15 @@ export default function Patients() {
             <div className="flex flex-wrap gap-2">
               <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">Editar</button>
               <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+              {!hasUserAccount(row) && (
+                <button
+                  onClick={() => handleCreateUser(row)}
+                  className="text-xs text-emerald-700 hover:underline disabled:cursor-not-allowed disabled:text-gray-400"
+                  disabled={!!creatingMap[resolveEntityId(row)]}
+                >
+                  {creatingMap[resolveEntityId(row)] ? 'Creando...' : 'Crear usuario'}
+                </button>
+              )}
             </div>
           ),
         },
@@ -177,6 +228,7 @@ export default function Patients() {
         </div>
         <div className="mt-4 space-y-3">
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {successMessage && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</div>}
           {loading ? <div className="text-sm text-gray-600">Cargando...</div> : items.length > 0 ? <Table columns={columns} data={items} /> : <div className="text-sm text-gray-500">No encontramos pacientes para tu búsqueda.</div>}
         </div>
       </div>
