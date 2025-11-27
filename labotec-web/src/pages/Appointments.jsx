@@ -48,7 +48,7 @@ export default function Appointments() {
   const openForm = item => {
     if (item) {
       setFormData({
-        patientId: item.patientId ?? '',
+        patientId: item.patientId ?? user?.patientId ?? '',
         scheduledAt: item.scheduledAt ? item.scheduledAt.slice(0, 16) : '',
         type: item.type ?? '',
         status: item.status ?? '',
@@ -56,7 +56,13 @@ export default function Appointments() {
       })
       setEditingItem(item)
     } else {
-      setFormData({ patientId: '', scheduledAt: '', type: '', status: '', notes: '' })
+      setFormData({
+        patientId: user?.patientId ?? '',
+        scheduledAt: '',
+        type: '',
+        status: '',
+        notes: '',
+      })
       setEditingItem(null)
     }
     setFormError('')
@@ -71,15 +77,28 @@ export default function Appointments() {
 
   const handleFormSubmit = async e => {
     e.preventDefault()
-    if (isPatient) return
     setSaving(true)
     setFormError('')
     try {
-      const payload = { ...formData, scheduledAt: formData.scheduledAt }
+      const payload = {
+        scheduledAt: formData.scheduledAt,
+        type: formData.type,
+        status: formData.status,
+        notes: formData.notes,
+      }
+
+      if (!isPatient || formData.patientId) {
+        payload.patientId = formData.patientId
+      }
+
+      const resourceUrl = editingItem
+        ? `${endpoint}/${resolveEntityId(editingItem)}`
+        : endpoint
+
       if (editingItem) {
-        await api.put(`/api/appointments/${resolveEntityId(editingItem)}`, payload)
+        await api.put(resourceUrl, payload)
       } else {
-        await api.post('/api/appointments', payload)
+        await api.post(resourceUrl, payload)
       }
       closeForm()
       fetchData()
@@ -111,20 +130,20 @@ export default function Appointments() {
     { key: 'type', header: 'Tipo' },
     { key: 'status', header: 'Estado' },
     { key: 'notes', header: 'Notas' },
-    ...(!isPatient
-      ? [
-        {
-          key: 'actions',
-          header: 'Acciones',
-          render: row => (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">Editar</button>
-              <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
-            </div>
-          ),
-        },
-      ]
-      : []),
+    {
+      key: 'actions',
+      header: 'Acciones',
+      render: row => (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => openForm(row)} className="text-xs text-sky-700 hover:underline">
+            {isPatient ? 'Modificar' : 'Editar'}
+          </button>
+          {!isPatient && (
+            <button onClick={() => handleDelete(row)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+          )}
+        </div>
+      ),
+    },
   ]
   const panelClass = 'rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm'
 
@@ -142,9 +161,12 @@ export default function Appointments() {
             <h3 className="text-lg font-semibold text-gray-900">{isPatient ? 'Historial de citas' : 'Calendario de atención'}</h3>
             <p className="text-sm text-gray-600">{isPatient ? 'Consulta los detalles y horarios confirmados.' : 'Crea, edita o elimina citas registradas.'}</p>
           </div>
-          {!isPatient && (
-            <button onClick={() => openForm(null)} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Agregar cita</button>
-          )}
+          <button
+            onClick={() => openForm(null)}
+            className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            {isPatient ? 'Agendar cita' : 'Agregar cita'}
+          </button>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -159,14 +181,21 @@ export default function Appointments() {
         </div>
       </div>
 
-      {showForm && !isPatient && (
+      {showForm && (
         <Modal title={editingItem ? 'Editar cita' : 'Agregar cita'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            <PatientSelect
-              value={formData.patientId}
-              onChange={patientId => setFormData({ ...formData, patientId })}
-              required
-            />
+            {!isPatient ? (
+              <PatientSelect
+                value={formData.patientId}
+                onChange={patientId => setFormData({ ...formData, patientId })}
+                required
+              />
+            ) : (
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Paciente</label>
+                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-gray-700">{user?.name || 'Yo mismo'}</p>
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Fecha y hora</label>
               <input
