@@ -15,19 +15,25 @@ export default function Table({ columns, data, rowKey }) {
   }
 
   return (
-    <div className="overflow-x-auto bg-white shadow rounded-xl">
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-100 text-gray-700">
-          <tr>{columns.map(c => (<th key={c.key} className="text-left px-3 py-2 font-medium">{c.header}</th>))}</tr>
-        </thead>
-        <tbody>
-          {data.map((row, idx) => (
-            <tr key={resolveRowKey(row, idx)} className="border-t">
-              {columns.map(c => (<td key={c.key} className="px-3 py-2">{c.render ? c.render(row) : row[c.key]}</td>))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-slate-700">
+            <tr>{columns.map(c => (<th key={c.key} className="px-4 py-3 text-left font-semibold">{c.header}</th>))}</tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {data.map((row, idx) => (
+              <tr key={resolveRowKey(row, idx)} className="hover:bg-slate-50/60">
+                {columns.map(c => (
+                  <td key={c.key} className="px-4 py-3 align-top text-slate-700">
+                    {c.render ? c.render(row) : row[c.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

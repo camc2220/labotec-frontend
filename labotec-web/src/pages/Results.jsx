@@ -226,32 +226,48 @@ export default function Results() {
       ]
       : []),
   ]
+  const panelClass = 'rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm'
+
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{isPatient ? 'Mis resultados' : 'Resultados'}</h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="rounded-lg border border-sky-200 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
-            disabled={items.length === 0}
-          >
-            Imprimir
-          </button>
-          {!isPatient && (
-            <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar resultado</button>
+      <div className={`rounded-2xl px-6 py-5 text-white shadow-md ${isPatient ? 'bg-gradient-to-r from-emerald-500 to-sky-500' : 'bg-gradient-to-r from-sky-600 to-sky-500'}`}>
+        <p className="text-xs uppercase tracking-[0.15em] text-white/80">Resultados</p>
+        <h2 className="text-2xl font-semibold">{isPatient ? 'Mis resultados' : 'Gestión de resultados'}</h2>
+        <p className="mt-1 text-sm text-white/80">Consulta y administra los reportes de laboratorio con una vista consistente.</p>
+      </div>
+
+      <div className={panelClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{isPatient ? 'Historial de resultados' : 'Resultados recientes'}</h3>
+            <p className="text-sm text-gray-600">{isPatient ? 'Descarga o imprime tus reportes en línea.' : 'Edita, imprime o elimina resultados publicados.'}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-50"
+              disabled={items.length === 0}
+            >
+              Imprimir
+            </button>
+            {!isPatient && (
+              <button onClick={() => openForm(null)} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Agregar resultado</button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {loading ? (
+            <div className="text-sm text-gray-600">Cargando...</div>
+          ) : items.length > 0 ? (
+            <Table columns={columns} data={items} />
+          ) : (
+            <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes resultados disponibles.' : 'No hay resultados registrados.'}</div>
           )}
         </div>
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {loading ? (
-        <div>Cargando...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} />
-      ) : (
-        <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes resultados disponibles.' : 'No hay resultados registrados.'}</div>
-      )}
       {showForm && !isPatient && (
         <Modal title={editingItem ? 'Editar resultado' : 'Agregar resultado'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="space-y-4">

@@ -25,34 +25,48 @@ export default function Layout() {
 
   if (!user) return null
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-white border-b">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="font-semibold text-sky-600">LABOTEC</Link>
-          <nav className="flex gap-4 text-sm">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-emerald-50 text-gray-800">
+      <header className="border-b bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+          <Link to="/" className="flex items-center gap-2 text-sky-700">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 font-semibold">L</span>
+            <div>
+              <p className="text-xs uppercase tracking-widest">Labotec</p>
+              <p className="text-sm font-semibold text-gray-900">Portal clínico</p>
+            </div>
+          </Link>
+          <nav className="hidden items-center gap-2 text-sm font-medium md:flex">
             {navigation.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
-                className={({ isActive }) => isActive ? 'text-sky-600' : 'text-gray-700'}
+                className={({ isActive }) =>
+                  `rounded-xl border px-3 py-2 transition ${isActive
+                    ? 'border-sky-200 bg-sky-50 text-sky-700 shadow-sm'
+                    : 'border-transparent text-gray-600 hover:border-sky-100 hover:bg-white hover:text-sky-700'}`}
               >
                 {item.label}
               </NavLink>
             ))}
           </nav>
           <div className="flex items-center gap-3 text-right">
-            <div className="text-xs text-gray-500 leading-tight">
-              <p className="font-semibold text-gray-700">{user.name}</p>
+            <div className="leading-tight text-xs text-gray-500">
+              <p className="text-sm font-semibold text-gray-800">{user.name}</p>
               <p className="capitalize">{user.role === 'admin' ? 'Administrador' : 'Paciente'}</p>
             </div>
-            <button onClick={logout} className="text-sm text-gray-600 hover:text-red-600">Salir</button>
+            <button
+              onClick={logout}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-sm text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              Salir
+            </button>
           </div>
         </div>
       </header>
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8">
         <Outlet />
       </main>
-      <footer className="border-t py-3 text-center text-xs text-gray-500 bg-white">
+      <footer className="border-t bg-white/90 py-4 text-center text-xs text-gray-500">
         © {new Date().getFullYear()} LABOTEC
       </footer>
     </div>

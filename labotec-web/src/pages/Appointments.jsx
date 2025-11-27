@@ -125,77 +125,94 @@ export default function Appointments() {
       ]
       : []),
   ]
+  const panelClass = 'rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm'
+
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">{isPatient ? 'Mis citas' : 'Citas'}</h2>
-        {!isPatient && (
-          <button onClick={() => openForm(null)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white">Agregar cita</button>
-        )}
+      <div className={`rounded-2xl px-6 py-5 text-white shadow-md ${isPatient ? 'bg-gradient-to-r from-emerald-500 to-sky-500' : 'bg-gradient-to-r from-sky-600 to-sky-500'}`}>
+        <p className="text-xs uppercase tracking-[0.15em] text-white/80">Citas</p>
+        <h2 className="text-2xl font-semibold">{isPatient ? 'Mis citas' : 'Gestión de citas'}</h2>
+        <p className="mt-1 text-sm text-white/80">Revisa el estado de las citas y coordina nuevas reservas cuando sea necesario.</p>
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {loading ? (
-        <div>Cargando...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} />
-      ) : (
-        <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes citas programadas.' : 'No hay citas registradas.'}</div>
-      )}
+
+      <div className={panelClass}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{isPatient ? 'Historial de citas' : 'Calendario de atención'}</h3>
+            <p className="text-sm text-gray-600">{isPatient ? 'Consulta los detalles y horarios confirmados.' : 'Crea, edita o elimina citas registradas.'}</p>
+          </div>
+          {!isPatient && (
+            <button onClick={() => openForm(null)} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Agregar cita</button>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {loading ? (
+            <div className="text-sm text-gray-600">Cargando...</div>
+          ) : items.length > 0 ? (
+            <Table columns={columns} data={items} />
+          ) : (
+            <div className="text-sm text-gray-500">{isPatient ? 'Aún no tienes citas programadas.' : 'No hay citas registradas.'}</div>
+          )}
+        </div>
+      </div>
+
       {showForm && !isPatient && (
         <Modal title={editingItem ? 'Editar cita' : 'Agregar cita'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">ID del paciente</label>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">ID del paciente</label>
               <input
                 value={formData.patientId}
                 onChange={e => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Fecha y hora</label>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Fecha y hora</label>
               <input
                 type="datetime-local"
                 value={formData.scheduledAt}
                 onChange={e => setFormData({ ...formData, scheduledAt: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                 required
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Tipo</label>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Tipo</label>
                 <input
                   value={formData.type}
                   onChange={e => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Estado</label>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Estado</label>
                 <input
                   value={formData.status}
                   onChange={e => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                   required
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Notas</label>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Notas</label>
               <textarea
                 value={formData.notes}
                 onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                 rows={3}
               />
             </div>
-            {formError && <div className="text-sm text-red-600">{formError}</div>}
+            {formError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</div>}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={closeForm} className="rounded-lg border px-3 py-2 text-sm">Cancelar</button>
-              <button type="submit" className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white" disabled={saving}>
+              <button type="button" onClick={closeForm} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-slate-50">Cancelar</button>
+              <button type="submit" className="rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700" disabled={saving}>
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
             </div>

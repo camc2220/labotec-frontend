@@ -137,32 +137,49 @@ export default function UserManagement() {
     ]
   }, [isAdmin, updatingMap])
 
+  const panelClass = 'rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm'
+
   if (!isAdmin) {
     return (
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Gestión de usuarios</h2>
-        <p className="text-sm text-gray-600">Esta sección está disponible únicamente para administradores.</p>
+        <div className="rounded-2xl bg-white/70 px-6 py-5 shadow-sm ring-1 ring-slate-200/60">
+          <h2 className="text-xl font-semibold text-gray-900">Gestión de usuarios</h2>
+          <p className="mt-1 text-sm text-gray-600">Esta sección está disponible únicamente para administradores.</p>
+        </div>
       </section>
     )
   }
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Gestión de usuarios</h2>
-        <button onClick={fetchUsers} className="bg-sky-600 text-white rounded-lg px-3 py-2 text-sm" disabled={loading}>
-          Actualizar lista
-        </button>
+      <div className="rounded-2xl bg-gradient-to-r from-sky-600 to-sky-500 px-6 py-5 text-white shadow-md">
+        <p className="text-xs uppercase tracking-[0.15em] text-white/80">Administración</p>
+        <h2 className="text-2xl font-semibold">Gestión de usuarios</h2>
+        <p className="mt-1 text-sm text-white/80">Controla los roles y permisos con una interfaz consistente.</p>
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {successMessage && <div className="text-sm text-emerald-600">{successMessage}</div>}
-      {loading ? (
-        <div>Cargando usuarios...</div>
-      ) : items.length > 0 ? (
-        <Table columns={columns} data={items} rowKey={(row, idx) => resolveUserIdentifier(row) ?? idx} />
-      ) : (
-        <div className="text-sm text-gray-500">Aún no hay usuarios registrados.</div>
-      )}
+
+      <div className={panelClass}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Usuarios registrados</h3>
+            <p className="text-sm text-gray-600">Actualiza los roles para garantizar el acceso correcto a cada módulo.</p>
+          </div>
+          <button onClick={fetchUsers} className="rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700" disabled={loading}>
+            Actualizar lista
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {successMessage && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</div>}
+          {loading ? (
+            <div className="text-sm text-gray-600">Cargando usuarios...</div>
+          ) : items.length > 0 ? (
+            <Table columns={columns} data={items} rowKey={(row, idx) => resolveUserIdentifier(row) ?? idx} />
+          ) : (
+            <div className="text-sm text-gray-500">Aún no hay usuarios registrados.</div>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
