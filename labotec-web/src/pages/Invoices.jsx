@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
 import { printRecords } from '../lib/print'
+import PatientSelect from '../components/PatientSelect'
 
 const getPatientKey = row => row?.patientId ?? row?.patientName ?? ''
 const getInvoiceKey = row =>
@@ -271,15 +272,12 @@ export default function Invoices() {
       {showForm && !isPatient && (
         <Modal title={editingItem ? 'Editar factura' : 'Agregar factura'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">ID del paciente</label>
-              <input
-                value={formData.patientId}
-                onChange={e => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
+            <PatientSelect
+              value={formData.patientId}
+              onChange={patientId => setFormData({ ...formData, patientId })}
+              required
+              label="Paciente"
+            />
             <div>
               <label className="block text-xs text-gray-600 mb-1">Número de factura</label>
               <input

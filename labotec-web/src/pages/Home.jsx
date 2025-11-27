@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
+import PatientSelect from '../components/PatientSelect'
 
 const testOptions = [
   'Perfil completo de laboratorio',
@@ -327,15 +328,11 @@ export default function Home() {
                 />
               </div>
               <div>
-                <label htmlFor="patientId" className="text-sm font-medium text-gray-700">Documento de identidad *</label>
-                <input
-                  id="patientId"
-                  name="patientId"
+                <PatientSelect
                   value={appointmentData.patientId}
-                  onChange={handleAppointmentChange}
-                  type="text"
-                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                  placeholder="Número de cédula o pasaporte"
+                  onChange={patientId => setAppointmentData(prev => ({ ...prev, patientId }))}
+                  required
+                  label="Paciente registrado"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

@@ -21,10 +21,11 @@ export default function Patients() {
     birthDate: '',
     email: '',
     phone: '',
+    status: 'active',
   })
 
   const resetForm = () => {
-    setFormData({ fullName: '', documentId: '', birthDate: '', email: '', phone: '' })
+    setFormData({ fullName: '', documentId: '', birthDate: '', email: '', phone: '', status: 'active' })
     setFormError('')
     setEditingItem(null)
   }
@@ -60,6 +61,7 @@ export default function Patients() {
         birthDate: item.birthDate ? item.birthDate.slice(0, 10) : '',
         email: item.email ?? '',
         phone: item.phone ?? '',
+        status: item.status ?? 'active',
       })
       setEditingItem(item)
     } else {
@@ -116,6 +118,15 @@ export default function Patients() {
     { key: 'birthDate', header: 'Nacimiento' },
     { key: 'email', header: 'Email' },
     { key: 'phone', header: 'Teléfono' },
+    {
+      key: 'status',
+      header: 'Estado',
+      render: row => (
+        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${row.status === 'inactive' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {row.status === 'inactive' ? 'Inactivo' : 'Activo'}
+        </span>
+      ),
+    },
     ...(user?.role === 'admin'
       ? [
         {
@@ -191,7 +202,7 @@ export default function Patients() {
                 required
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Fecha de nacimiento</label>
                 <input
@@ -210,6 +221,17 @@ export default function Patients() {
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
                   required
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Estado</label>
+                <select
+                  value={formData.status}
+                  onChange={e => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                >
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
               </div>
             </div>
             <div>

@@ -4,6 +4,7 @@ import Table from '../components/Table'
 import Modal from '../components/Modal'
 import { resolveEntityId } from '../lib/entity'
 import { useAuth } from '../context/AuthContext'
+import PatientSelect from '../components/PatientSelect'
 
 export default function Appointments() {
   const { user } = useAuth()
@@ -161,15 +162,11 @@ export default function Appointments() {
       {showForm && !isPatient && (
         <Modal title={editingItem ? 'Editar cita' : 'Agregar cita'} onClose={closeForm}>
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">ID del paciente</label>
-              <input
-                value={formData.patientId}
-                onChange={e => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                required
-              />
-            </div>
+            <PatientSelect
+              value={formData.patientId}
+              onChange={patientId => setFormData({ ...formData, patientId })}
+              required
+            />
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Fecha y hora</label>
               <input

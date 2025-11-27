@@ -9,6 +9,11 @@ const ROLE_OPTIONS = [
   { value: 'patient', label: 'Paciente' },
 ]
 
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Activo' },
+  { value: 'inactive', label: 'Inactivo' },
+]
+
 export default function UserManagement() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
@@ -71,6 +76,10 @@ export default function UserManagement() {
     setItems(prev => prev.map(item => (resolveUserIdentifier(item) === entityId ? { ...item, role: newRole } : item)))
   }
 
+  const updateLocalStatus = (entityId, newStatus) => {
+    setItems(prev => prev.map(item => (resolveUserIdentifier(item) === entityId ? { ...item, status: newStatus } : item)))
+  }
+
   const handleRoleChange = async (target, newRole) => {
     if (!isAdmin) return
     const entityId = resolveUserIdentifier(target)
@@ -98,6 +107,33 @@ export default function UserManagement() {
     }
   }
 
+  const handleStatusChange = async (target, newStatus) => {
+    if (!isAdmin) return
+    const entityId = resolveUserIdentifier(target)
+    if (!entityId || target.status === newStatus) return
+
+    setError('')
+    setSuccessMessage('')
+    setUpdatingMap(prev => ({ ...prev, [entityId]: true }))
+    const previousStatus = target.status
+    updateLocalStatus(entityId, newStatus)
+
+    try {
+      await api.put(`/api/users/${entityId}`, { status: newStatus })
+      setSuccessMessage('El estado del usuario se actualizó correctamente.')
+    } catch (err) {
+      console.error(err)
+      updateLocalStatus(entityId, previousStatus)
+      setError('No pudimos actualizar el estado. Intenta nuevamente más tarde.')
+    } finally {
+      setUpdatingMap(prev => {
+        const copy = { ...prev }
+        delete copy[entityId]
+        return copy
+      })
+    }
+  }
+
   const columns = useMemo(() => {
     if (!isAdmin) return []
     return [
@@ -109,6 +145,15 @@ export default function UserManagement() {
         render: row => (
           <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-1 text-xs text-sky-700">
             {row.role === 'admin' ? 'Administrador' : 'Paciente'}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Estado',
+        render: row => (
+          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs ${row.status === 'inactive' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+            {row.status === 'inactive' ? 'Inactivo' : 'Activo'}
           </span>
         ),
       },
@@ -126,6 +171,28 @@ export default function UserManagement() {
               onChange={e => handleRoleChange(row, e.target.value)}
             >
               {ROLE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )
+        },
+      },
+      {
+        key: 'statusActions',
+        header: 'Cambiar estado',
+        render: row => {
+          const entityId = resolveEntityId(row)
+          const isUpdating = !!updatingMap[entityId]
+          return (
+            <select
+              className="border rounded-lg px-2 py-1 text-sm"
+              value={row.status ?? 'active'}
+              disabled={isUpdating}
+              onChange={e => handleStatusChange(row, e.target.value)}
+            >
+              {STATUS_OPTIONS.map(option => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
