@@ -13,6 +13,7 @@ export default function Layout() {
         { to: '/app/appointments', label: 'Citas' },
         { to: '/app/results', label: 'Resultados' },
         { to: '/app/invoices', label: 'Facturas' },
+        { to: '/app/profile', label: 'Mi perfil' },
       ]
     }
     return [
@@ -20,6 +21,7 @@ export default function Layout() {
       { to: '/app/appointments', label: 'Mis citas' },
       { to: '/app/results', label: 'Mis resultados' },
       { to: '/app/invoices', label: 'Mis facturas' },
+      { to: '/app/profile', label: 'Mi perfil' },
     ]
   }, [user?.role])
 

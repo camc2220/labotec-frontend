@@ -12,6 +12,7 @@ import Home from './pages/Home'
 import PatientDashboard from './pages/PatientDashboard'
 import AppIndexRedirect from './components/AppIndexRedirect'
 import UserManagement from './pages/UserManagement'
+import Profile from './pages/Profile'
 //jhjkhk
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="appointments" element={<Appointments />} />
           <Route path="results" element={<Results />} />
           <Route path="invoices" element={<Invoices />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
